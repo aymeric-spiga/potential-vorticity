@@ -1,3 +1,9 @@
+# planetary fork of potential-vorticity
+
+the core of computations were kept and slightly modified
+added generic planetary constants, interpolations, and writing in a netCDF file
+changes are here https://github.com/aymeric-spiga/potential-vorticity/commit/fee2fa178ecabee04fdebf8708f1188d932f9dc8
+
 # potential-vorticity
 
 Python code (<b>gfs_pv_1.2.py</b>) for dynamic tropopause (DT) calculations: DT pressure, DT potential temperature (theta), PV on 
