@@ -20,19 +20,25 @@ import planets
 ####################################################
 ### NetCDF file that contains ps, u, v and T
 ncfile = "Xhistins_270_red.nc"
+ncfile = "Xhistins_172_red.nc"
+ncfile = "diagfi210_240.nc"
 ### txt file that contains ap and bp coefficients
 txtfile = "apbp.txt"
 ### planetary constants
 #myp = planets.Saturn
-myp = planets.Planet() ; myp.ini("Saturn_dynamico",whereset="./")
+#myp = planets.Planet() ; myp.ini("Saturn_dynamico",whereset="./")
+myp = planets.Mars
 ### pressure grid
-p_upper,p_lower,nlev = 1e2,3.5e5,50 # whole atm
+#p_upper,p_lower,nlev = 1e2,3.5e5,50 # whole atm
+p_upper,p_lower,nlev = 1e-1,1e3,50 # whole atm
 targetp1d = np.logspace(np.log10(p_lower),np.log10(p_upper),nlev)
 ### reference pressure
 p0 = targetp1d[0]+1.
 ### potential temperature grid
 profile_1d = None
-profile_1d = np.array([195,200,205,210,215,220,225,230])
+profile_1d = np.array([220,240,260,280,300,320])
+profile_1d = np.linspace(220,520,20)
+print profile_1d
 ### output file name
 output = "PVnew_"+ncfile
 ####################################################
@@ -43,7 +49,10 @@ output = "PVnew_"+ncfile
 
 ####################################################
 def getp_fromapbp(txtfile, ps):
-   ap,bp = np.loadtxt(txtfile,unpack=True)
+   #ap,bp = np.loadtxt(txtfile,unpack=True)
+   file = nc.Dataset(ncfile,'r')
+   ap  = file.variables['ap'][:]
+   bp  = file.variables['bp'][:]
    nz = len(ap)
    aps = 0.5*(ap[0:nz-1]+ap[1:nz])
    bps = 0.5*(bp[0:nz-1]+bp[1:nz])
@@ -97,17 +106,19 @@ pi=np.pi
 # open dataset, retreive variables, close dataset
 print '... open dataset and get variables'
 file = nc.Dataset(ncfile,'r')
-lat  = file.variables['lat'][:]
-lon  = file.variables['lon'][:]
-tps  = file.variables['time_counter'][:]
+lat  = file.variables['latitude'][:]
+lon  = file.variables['longitude'][:]
+tps  = file.variables['Time'][:]
 tdim = len(tps)
 xdim = len(lon)
 ydim = len(lat)
 ps = file.variables['ps'][:,:,:]
 p = getp_fromapbp(txtfile, ps)
-t = file.variables['temperature'][:,:,:,:]
+t = file.variables['temp'][:,:,:,:]
 u = file.variables['u'][:,:,:,:]
 v = file.variables['v'][:,:,:,:]
+dustq = file.variables['dustq'][:,:,:,:]
+h2o_ice = file.variables['h2o_ice'][:,:,:,:]
 file.close()
 
 # some prep work for derivatives
@@ -136,7 +147,10 @@ print '... interpolating on pressure grid'
 u = interpolate4(targetp1d, p, u, log=True)
 v = interpolate4(targetp1d, p, v, log=True)
 theta = interpolate4(targetp1d, p, theta, log=True)
+dustq = interpolate4(targetp1d, p, dustq, log=True)
+h2o_ice = interpolate4(targetp1d, p, h2o_ice, log=True)
 p = interpolate4(targetp1d, p, p, log=True)
+
 
 # calculate derivatives
 # (np.gradient can handle 1D uneven spacing,
@@ -169,6 +183,9 @@ pv = interpolate4(profile_1d,theta,pv,log=False)
 pvr = interpolate4(profile_1d,theta,pvr,log=False)
 p_t = interpolate4(profile_1d,theta,p,log=False)
 u = interpolate4(profile_1d,theta,u,log=False)
+v = interpolate4(profile_1d,theta,v,log=False)
+dustq = interpolate4(profile_1d,theta,dustq,log=False)
+h2o_ice = interpolate4(profile_1d,theta,h2o_ice,log=False)
 
 # =====================
 #  --- OUTPUT FILE ---
@@ -194,6 +211,9 @@ pot_vorticity = datas.createVariable('PV', 'f4', ('time', 'tpot', 'latitude', 'l
 relative_pv   = datas.createVariable('relative_PV', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
 pressure      = datas.createVariable('p', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
 zonwind       = datas.createVariable('u', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
+merwind       = datas.createVariable('v', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
+qdust         = datas.createVariable('dustq', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
+qice         = datas.createVariable('h2o_ice', 'f4', ('time', 'tpot', 'latitude', 'longitude'))
 
 longitude[:]     = lon
 latitude[:]      = lat
@@ -203,6 +223,9 @@ pot_vorticity[:] = pv
 relative_pv[:]   = pvr
 pressure[:]      = p_t
 zonwind[:]       = u             
+merwind[:]       = v 
+qdust[:]         = dustq
+qice[:]          = h2o_ice
 
 longitude.units     = 'degrees east'
 latitude.units      = 'degrees north'
@@ -212,5 +235,8 @@ pot_vorticity.units = 'kg m$^2$ s$^{-1}$ K$^{-1}$'
 relative_pv.units   = 'kg m$^2$ s$^{-1}$ K$^{-1}$'
 pressure.units      = 'Pa'
 zonwind.units       = 'm s$^{-1}$'
+merwind.units       = 'm s$^{-1}$'
+qdust.units         = 'kg/kg'
+qice.units          = 'kg/kg'
 
 datas.close()
